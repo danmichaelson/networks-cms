@@ -75,6 +75,19 @@ router.get('/', function(request, response, toss) {
     // If there's an error, tell Express to do its default behavior, which is show the error page.
     if (err) return toss(err);
     
+    // Go through all the phrases and a set color for each
+    var colors = ['yellow', 'red', 'blue'];
+    var color_num = 0;
+    var phrase_num = 0;
+    while (phrase_num < phrases.length) {
+      phrases[phrase_num].color = colors[color_num];
+      phrase_num += 1;
+      color_num += 1;
+      if (color_num >= colors.length) {
+        color_num = 0;
+      }
+    }
+    
     // The list of shapes will be passed to the template.
     // Any additional variables can be passed in a similar way (response.locals.foo = bar;)
     response.locals.phrases = phrases;
@@ -91,6 +104,10 @@ router.get('/', function(request, response, toss) {
       var next_arrival = moment(feeds.bus[0].arrival_at);
       var arriving_in = next_arrival.from(now);
       var margin = next_arrival.diff(now) / 1000;
+      // Emergency limit for unusual weather or poor service
+      if (margin > 500) {
+        margin = 500;
+      }
 
       response.locals.temperature = feeds.weather.main.temp;
       response.locals.font_size = feeds.weather.main.temp / 2;
