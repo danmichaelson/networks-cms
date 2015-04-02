@@ -110,12 +110,3 @@ var desk = {
 };
 
 desk.greet();
-
-
-
-
-
-
-
-
-

@@ -14,6 +14,8 @@ thing as filling in the form and pressing "Submit".
     Preposition <input type="text" name="preposition"><br>
     
     Noun <input type="text" name="noun"><br>
+    
+    {{{image_upload_tag}}}<br>
 
     <!-- Here's the submit button -->
     <input type="submit"> 
@@ -30,3 +32,13 @@ thing as filling in the form and pressing "Submit".
     -->
     
 </form>
+
+
+<script type="text/javascript" src="/javascripts/cloudinary/jquery.ui.widget.js"></script>
+<script type="text/javascript" src="/javascripts/cloudinary/jquery.iframe-transport.js"></script>
+<script type="text/javascript" src="/javascripts/cloudinary/jquery.fileupload.js"></script>
+<script type="text/javascript" src="/javascripts/cloudinary/jquery.cloudinary.js"></script>
+
+<script type="text/javascript">
+    $.cloudinary.config({cloud_name: '{{cloudinary_cloud_name}}', api_key: '{{cloudinary_api_key}}'});
+</script>
