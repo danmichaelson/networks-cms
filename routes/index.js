@@ -2,10 +2,12 @@ var express = require('express');
 var router = express.Router();
 var moment = require('moment');
 var cloudinary = require('cloudinary').v2;
+var cas = require('grand_master_cas');
 var feeds = require('../feeds.js');
 
 module.exports = router;
 
+var hostname = process.env.C9_HOSTNAME || "localhost:3000";
 
 
 
@@ -24,6 +26,22 @@ cloudinary.config({
   api_secret: cloudinary_api_secret
 });
 
+var cloudinary_cors = "http://" + hostname + "/cloudinary_cors.html";
+
+
+
+// =========================================================
+// =
+// =   SET UP CAS (FOR YALE USER AUTHENTICATION)
+// =
+
+cas.configure({
+  casHost: "secure.its.yale.edu",             // required
+  ssl: true,                                  // default false, Yale requires true
+  service: 'https://' + hostname + '/new',    // Absolute URL to where cas.bouncer should take you after successful login.
+  redirectUrl: '/',                           // the route that cas.blocker will send to if not authed. Defaults to '/'
+  sessionName: 'username'                     // get the netID from request.session.whatever - cas_user by default.
+});
 
 
 
@@ -66,7 +84,8 @@ mongoose.connect(process.env.MONGOLAB_URI || ('mongodb://' + process.env.IP + '/
 var Phrase = mongoose.model('Phrase', {
   preposition: {type: String, required: true},
   noun: {type: String, required: true},
-  image_id: {type: String}
+  image: {type: String},
+  username: {type: String}
 });
 
 
@@ -141,6 +160,8 @@ router.get('/', function(request, response, toss) {
     catch(err) {
       return toss(err);
     }
+
+    response.locals.current_user = request.session.username;
     
     // layout tells template to wrap itself in the "layout" template (located in the "views" folder).
     response.locals.layout = 'layout';
@@ -171,13 +192,13 @@ router.get('/show', function(request, response, toss) {
 
     if (err) return toss(err);
     
-    if (phrase.image_id) {
-      var image_url = cloudinary.url(phrase.image_id, 
-                 { crop: "fit", width: 200, height: 200 });
+    if (phrase.image) {
+      var image_url = cloudinary.url(phrase.image, {crop: "fit", width: 200, height: 200});
     }
     
     response.locals.phrase = phrase;
     response.locals.image_url = image_url;
+    response.locals.current_user = request.session.username;
     response.locals.layout = 'layout';
     response.render('show');
     
@@ -189,19 +210,24 @@ router.get('/show', function(request, response, toss) {
 
 // NEW PAGE
 // /new
+// cas.bouncer means when you go to /new you'll be asked to log in if you aren't already,
+// and then sent along to this action.
 
-router.get('/new', function(request, response) {
+router.get('/new', cas.bouncer, function(request, response) {
 
   // When the server receives a request for "/new", this code runs
-  
-  var cloudinary_cors = "http://" + request.headers.host + "/cloudinary_cors.html";
-  
-  // Just render a basic HTML page with a form. We don't need to pass any variables.
 
-  response.locals.layout = 'layout';
-  response.locals.image_upload_tag = cloudinary.uploader.image_upload_tag('image_id', { callback: cloudinary_cors });
+  console.log("Logged in user", request.session.cas_user);
+  
+  // Just render a basic HTML page with a form. 
+  // Pass variables to set up the special image uploader button.
+
+  response.locals.image_upload_tag = cloudinary.uploader.image_upload_tag('image', { callback: cloudinary_cors });
   response.locals.cloudinary_cloud_name = cloudinary_cloud_name;
   response.locals.cloudinary_api_key = cloudinary_api_key;
+
+  response.locals.current_user = request.session.username;
+  response.locals.layout = 'layout';
   
   response.render('new');
   
@@ -215,20 +241,24 @@ router.get('/new', function(request, response) {
 // /create?width=25&height=25&top=25&left=25&color=#ff0000
 // Normally you get to this page by clicking "Submit" on the /new page, but
 // you could also enter a URL like the above directly into your browser.
+// cas.blocker means if you aren't already logged in, you'll be redirected to home
+// because you shouldn't be here.
 
-router.get('/create', function(request, response, toss) {
+router.get('/create', cas.blocker, function(request, response, toss) {
   
   // When the server receives a request for "/create", this code runs
   
+  response.locals.current_user = request.session.username;
   response.locals.layout = 'layout';
 
   // Process the uploaded image
-  var preloaded_file = new cloudinary.PreloadedFile(request.query.image_id);
-  var image_id;
+  var preloaded_file = new cloudinary.PreloadedFile(request.query.image);
   if (preloaded_file.is_valid()) {
-    image_id = preloaded_file.identifier();
-    console.log("Got image", image_id);
+    var image = preloaded_file.identifier();
+    console.log("Got image", image);
   }
+  
+  console.log("Logged in user", request.session.cas_user);
 
   // Make a new Phrase in memory, with the parameters that come from the URL 
   // ?width=25&height=25&top=25&left=25&color=#ff0000
@@ -236,7 +266,8 @@ router.get('/create', function(request, response, toss) {
   var phrase = new Phrase({
     preposition: request.query.preposition,
     noun: request.query.noun,
-    image_id: image_id
+    image: image,
+    username: request.session.username
   });
   
   // Now save it to the database
@@ -267,7 +298,15 @@ router.get('/about', function(request, response) {
 
   // When the server receives a request for "/about", this code runs
 
+  response.locals.current_user = request.session.username;
   response.locals.layout = 'layout';
   response.render('about');
   
 });
+
+
+
+// LOGOUT PAGE
+// /logout
+
+router.get('/logout', cas.logout);

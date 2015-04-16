@@ -7,5 +7,13 @@
   </head>
   <body>
     {{{body}}}
+    
+    {{#if current_user}}
+      <p>
+        Hello {{current_user}}<br>
+        <a href="/logout">Log out</a>
+      </p>
+    {{/if}}
+    
   </body>
 </html>
